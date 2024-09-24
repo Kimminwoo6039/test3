@@ -1,67 +1,34 @@
-import React, { MouseEventHandler, MutableRefObject, useEffect, useRef, useState } from 'react';
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCamera } from "@fortawesome/free-solid-svg-icons";
-import { Button, ButtonGroup, FormControlLabel, Switch } from "@mui/material";
-import { VideoUtil } from "Components/utils/video";
-import { Client } from '@stomp/stompjs'; // @stomp/stompjs 라이브러리 임포트
+import React, {MouseEventHandler, MutableRefObject, useEffect, useRef, useState} from 'react';
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faCamera} from "@fortawesome/free-solid-svg-icons";
+import {Button, ButtonGroup, FormControlLabel, Switch} from "@mui/material";
+import {VideoUtil} from "Components/utils/video";
 
 interface IDeviceProps {
     info: MediaDeviceInfo;
-    isActive: boolean;
-    onClick: MouseEventHandler<HTMLDivElement>;
+    isActive: boolean
+    onClick: MouseEventHandler<HTMLDivElement>
 }
 
 const Camera = (props: IDeviceProps) => {
     return (
         <div className={props.isActive ? "device-item active" : "device-item"} onClick={props.onClick}>
-            <div className="icon"><FontAwesomeIcon icon={faCamera} /></div>
+            <div className="icon"><FontAwesomeIcon icon={faCamera}/></div>
             <div className="name">{props.info.label.split('(')[0]}</div>
         </div>
     );
 }
-
 const CameraView = () => {
     const videoRef = useRef<HTMLVideoElement>() as MutableRefObject<HTMLVideoElement>;
-    const [cameraId, setCameraId] = useState<string>();
-    const [cameras, setCameras] = useState<MediaDeviceInfo[]>();
+
+    const [cameraId, setCameraId] = useState<string>()
+    const [cameras, setCameras] = useState<MediaDeviceInfo[]>()
+
     const [isCaptured, setIsCaptured] = useState(false);
-    const [constraints, setConstraints] = useState<MediaStreamConstraints>({ video: true, audio: true });
+    const [constraints, setConstraints] = useState<MediaStreamConstraints>({video: true, audio: true});
 
-    const videoUtil = new VideoUtil(videoRef, {
+    const videoUtil= new VideoUtil(videoRef, {
         mirror: true
-    });
-
-    // STOMP 클라이언트 선언
-    const stompClient = new Client({
-        brokerURL: 'wss://test2-zeta-drab.vercel.app', // WebSocket URL
-        onConnect: (frame) => {
-            console.log('Connected: ' + frame);
-
-            // ICE 후보 수신
-            stompClient.subscribe('/topic/peer/iceCandidate', (message) => {
-                const iceCandidate = JSON.parse(message.body);
-                console.log("ICE Candidate received: ", iceCandidate);
-                // WebRTC 연결에 ICE 후보 추가
-            });
-
-            // 오퍼 수신
-            stompClient.subscribe('/topic/peer/offer', (message) => {
-                const offer = JSON.parse(message.body);
-                console.log("Offer received: ", offer);
-                // WebRTC 연결에 오퍼 추가
-            });
-
-            // 응답 수신
-            stompClient.subscribe('/topic/peer/answer', (message) => {
-                const answer = JSON.parse(message.body);
-                console.log("Answer received: ", answer);
-                // WebRTC 연결에 응답 추가
-            });
-        },
-        onStompError: (frame) => {
-            console.error('Broker reported error: ' + frame.headers['message']);
-            console.error('Additional details: ' + frame.body);
-        }
     });
 
     const getUserMedia = function (constraints?: MediaStreamConstraints) {
@@ -70,11 +37,19 @@ const CameraView = () => {
                 videoRef.current.srcObject = stream;
                 resolve(stream);
             }).catch(error => {
-                console.error(error);
-                reject('카메라 접근을 허용해주세요.');
+                console.error(error)
+                if (['NotFoundError', 'DevicesNotFoundError', 'NotReadableError'].indexOf(error.name) > -1) {
+                    reject('사용 가능한 카메라가 없습니다.');
+                } else if (error.name === 'TrackStartError') {
+                    reject('다른 앱에서 카메라를 이미 사용하고 있어 사용할 수 없습니다.');
+                } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    reject('카메라 접근을 허용해주세요.');
+                } else {
+                    reject('알 수 없는 이유로 카메라에 접근할 수 없습니다.')
+                }
             });
-        });
-    };
+        })
+    }
 
     useEffect(() => {
         setIsCaptured(false);
@@ -83,18 +58,15 @@ const CameraView = () => {
             navigator.mediaDevices.enumerateDevices().then(devices => {
                 const cameras = devices.filter(e => e.kind === 'videoinput');
                 setCameras(cameras);
-                setCameraId(cameras[0]?.deviceId);
+                setCameraId(cameras[0].deviceId);
             });
-        });
+        })
     }, []);
 
-    useEffect(() => {
-        // STOMP 클라이언트 연결
-        stompClient.activate();
-        return () => {
-            stompClient.deactivate();
-        };
-    }, []);
+    // 카메라 ID 변경 시 변경된 Video 저장
+    useEffect(function () {
+        setIsCaptured(false);
+    }, [cameraId]);
 
     function playVideo() {
         setIsCaptured(false);
@@ -118,23 +90,23 @@ const CameraView = () => {
                     <div className="section-title">카메라 목록</div>
                     <div className="device-list">
                         {cameras?.length === 0 ? (
-                            <div>사용 가능한 카메라가 없습니다.</div>
-                        ) : (
-                            cameras?.map((device, index) => {
+                                <div>사용 가능한 카메라가 없습니다. <br/> 카메라 연결 후 사용해주세요</div>
+                            ) :
+                            (cameras?.map((device, index) => {
                                 return <Camera key={'video-' + index} info={device}
                                                isActive={cameraId === device.deviceId}
                                                onClick={(e) => {
-                                                   setCameraId(device.deviceId);
+                                                   setCameraId(cameraId)
                                                    getUserMedia({
                                                        video: {
-                                                           deviceId: device.deviceId,
+                                                           deviceId: cameraId,
                                                        }
                                                    }).then(stream => {
-                                                       // 선택한 카메라에서 비디오 스트림 처리
-                                                   });
-                                               }} />;
-                            })
-                        )}
+
+                                                   })
+                                               }}/>;
+                            }))
+                        }
                     </div>
                 </div>
                 <div className="section">
@@ -145,8 +117,8 @@ const CameraView = () => {
                                               control={<Switch onChange={event => {
                                                   videoUtil && videoUtil.setMirror(event.target.checked);
                                               }}
-                                                               defaultChecked={videoUtil.getMirror()} />}
-                                              label="좌우 반전" />
+                                                               defaultChecked={videoUtil.getMirror()}/>}
+                                              label="좌우 반전"/>
                             <ButtonGroup>
                                 <Button disabled={isCaptured} onClick={savePicture}>촬영</Button>
                                 <Button disabled={!isCaptured} onClick={playVideo}>재촬영</Button>
@@ -158,6 +130,7 @@ const CameraView = () => {
                 <div className="section">
                     <video id="camera" autoPlay={true} ref={videoRef}></video>
                 </div>
+
             </div>
         </div>
     );
