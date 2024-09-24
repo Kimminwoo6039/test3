@@ -36,7 +36,7 @@ export class MenuItem {
 }
 
 export const MainContentType = {
-    CAMERA: new MenuItem(0, '카메라', <FontAwesomeIcon icon={icon({name: 'camera'})}/>, (<CameraView/>)),
+    // CAMERA: new MenuItem(0, '카메라', <FontAwesomeIcon icon={icon({name: 'camera'})}/>, (<CameraView/>)),
     SCREEN: new MenuItem(1, '스크린', <FontAwesomeIcon icon={icon({name: 'desktop'})}/>, (<ScreenView/>))
 }
 
@@ -47,7 +47,7 @@ export interface IMainProps {
 
 const MainView = (props: IMainProps) => {
     const [menuIndex, setMenuIndex] = useState<number>(props.type ? props.type : 0)
-    const [menuInfo, setMenuInfo] = useState<MenuItem>(MainContentType.CAMERA)
+    const [menuInfo, setMenuInfo] = useState<MenuItem>(MainContentType.SCREEN)
     const [drawerOpened, setDrawerOpened] = useState(false);
     const [currentTime, setCurrentTime] = useState(DateUtil.getDateToStr({returnType: 'timeonly'}))
     const timer = useRef<NodeJS.Timer>();
@@ -77,16 +77,6 @@ const MainView = (props: IMainProps) => {
     const menuList = (disablePadding: boolean) => {
         return (
             <div className="menu-list">
-                <Profile
-                    imageUrl="https://github.com/hjkim1004.png"
-                    name="Heejeong Kim"
-                    job="Full Stack Developer"
-                    link={{
-                        blog: 'https://velog.io/@developer_khj',
-                        github: 'https://github.com/hjkim1004',
-                        email: 'developer.heejeong@gmail.com'
-                    }}
-                />
                 <List>
                     {Object.values(MainContentType).map((menu, index) => (
                         <ListItem key={'menu-' + menu.index} disablePadding={disablePadding}>
